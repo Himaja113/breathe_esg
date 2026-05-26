@@ -1,47 +1,53 @@
-# Breathe ESG Platform
+# Breathe ESG - Carbon Accounting Engine
 
-A Django REST + React application for carbon accounting data ingestion, normalization, and review.
+Breathe ESG is a modern, full-stack enterprise carbon accounting prototype designed to ingest unstructured data from multiple sources (SAP, Utilities, Corporate Travel), normalize it against standard emission factors, flag anomalies, and provide an immutable audit trail for legal compliance.
 
-## Architecture Summary
-Breathe ESG utilizes a **Django 4.2 / Django REST Framework** backend to handle complex ingestion parsing, unit normalization, and strict append-only audit logging via PostgreSQL. The frontend is a modern **React 18** application built with Vite and Tailwind CSS, providing ESG analysts with an intuitive dashboard to review, flag, and approve emission records securely. The architecture strictly separates raw, immutable payloads from normalized operational data to ensure financial-grade auditability.
+## Architecture
 
-## Live URLs & Login (Deployment via user)
--   **Frontend URL:** [Pending Vercel Deployment]
--   **Backend URL:** [Pending Railway Deployment]
--   **Demo Analyst Account:**
-    -   Email / Username: `analyst`
-    -   Password: `esg2024!`
+* **Frontend:** React, TailwindCSS, Vite (Hosted on Vercel)
+* **Backend:** Python, Django REST Framework, SQLite/PostgreSQL (Hosted on Railway)
+* **API Proxy:** The frontend proxies all `/api` requests through Vercel to bypass ISP DNS blocking.
 
-## How to Run Locally
+## Core Features
+- **Multi-source Ingestion Engine:** Parses Tab-delimited TXT (SAP) and CSV (Utility, Travel) files.
+- **Automated Normalization:** Maps raw quantities to standard emission factors (Scope 1, 2, 3).
+- **Anomaly Detection:** Hard-coded heuristics catch massive outliers or negative consumption values to prevent bad data from polluting the ledger.
+- **Human-in-the-Loop Review:** A clean dashboard for Analysts to review, edit, and approve flagged records.
+- **Role-Based Access Control (RBAC):** Public links default to a Read-Only Auditor view. Analysts must log in to mutate state.
+- **Immutable Audit Trail:** All edits generate an immutable before/after snapshot log of the exact data change and the user responsible.
 
-### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- PostgreSQL (or fallback to SQLite via `.env`)
+## Project Documentation Deliverables
+The core architectural decisions and research are documented in the `docs/` folder. These files carry significant weight in evaluating the platform's enterprise readiness:
 
-### 1. Backend Setup
+1. [Data Model Architecture (`docs/MODEL.md`)](./docs/MODEL.md): Explains how multi-tenancy, Scope categorization, source-of-truth tracking, and the audit trail are structurally handled.
+2. [Design Decisions (`docs/DECISIONS.md`)](./docs/DECISIONS.md): Details how ambiguities were resolved (unmatched data, anomaly definitions, workflows) and what questions remain for Product Managers.
+3. [Engineering Tradeoffs (`docs/TRADEOFFS.md`)](./docs/TRADEOFFS.md): Outlines three deliberate omissions made to optimize prototype delivery speed over production scale.
+4. [Data Sources Research (`docs/SOURCES.md`)](./docs/SOURCES.md): Explores the real-world formatting of SAP, Utility, and Travel data, what we chose to sample, and what edge cases would break the current ingestion engine in production.
+
+## Local Setup
+
+### Backend (Django)
 ```bash
-cd breathe_esg/backend
+cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
-pip install -r requirements.txt # (or install django djangorestframework psycopg2-binary django-cors-headers python-dotenv)
-
-# Setup DB and Seed Data
+.\venv\Scripts\activate
+pip install -r requirements.txt
 python manage.py migrate
 python seed.py
-python manage.py runserver 8000
+python manage.py runserver
 ```
 
-### 2. Frontend Setup
+### Frontend (React)
 ```bash
-cd breathe_esg/frontend
+cd frontend
 npm install
 npm run dev
 ```
-The app will run at `http://localhost:5173`.
 
-### 3. Testing the App
-1. Log in (or simply navigate to the app, local prototype bypasses strict auth for ease of demo).
-2. Go to **Ingest**.
-3. Upload the generated files located in `breathe_esg/sample_data/`.
-4. Go to **Review** to see normalized, flagged, and calculated records.
+### Sample Data
+You can find pre-generated `sap_procurement.txt`, `utility_data.csv`, and `travel_data.csv` files in the `/sample_data` folder to test the ingestion engine.
+
+### Demo Login
+To access the "Edit" and "Approve" features, click "Login as Analyst" on the frontend:
+* **Username:** `analyst`
+* **Password:** `esg2024!`

@@ -1,21 +1,23 @@
-# Architectural & Product Decisions
+# Design Decisions & Ambiguities Resolved
 
-## 1. SAP Data: Flat File Export vs. Live OData API
-**Decision:** Accept SAP flat-file/IDoc exports (tab-delimited) rather than building a live OData API integration.
-**Reasoning:** In the enterprise ERP space, granting direct live API access to third-party SaaS vendors is a massive security hurdle requiring months of InfoSec review. However, setting up a scheduled background job in SAP to drop a flat file to an SFTP or S3 bucket is standard practice and highly accepted.
+During the architecture and implementation of the prototype, several ambiguities regarding enterprise data ingestion and processing had to be resolved. 
 
-## 2. Utility Data: CSV over PDF Parsing
-**Decision:** Require utility data to be uploaded via the provider's CSV export portal.
-**Reasoning:** While PDF scraping (via OCR or text extraction) seems magical, utility bill templates change frequently without notice. A minor layout change breaks the parser. CSV exports from portals (like PG&E or Con Ed) maintain a much stricter schema contract.
+## 1. Ambiguity: How to handle unmatched or unstructured raw data?
+**Decision:** I chose to implement a flexible `raw_data` JSONField on the `NormalizedRecord` model, and process ingestion synchronously but distinctively per source format. 
+**Why:** Enterprise clients often change column names or append custom fields (e.g., custom SAP cost centers). Instead of creating rigid schemas that break on upload, the system ingests everything into the JSON payload and attempts to extract known fields (`quantity`, `date`, `activity_type`) for the normalized columns.
+**Subset Handled vs Ignored:** For SAP data, we extract `WERKS` (Plant), `MENGE` (Quantity), `MEINS` (Unit), and `BKTXT` (Fuel Type). We actively ignore accounting fields like `BUKRS` (Company Code) for now, though they are preserved in the JSON payload for future reporting expansions.
 
-## 3. Corporate Travel: Concur CSV vs Navan API
-**Decision:** Default to standard expense management CSV exports (like SAP Concur).
-**Reasoning:** Similar to the SAP decision, integrating with modern APIs (like Navan) requires OAuth enterprise setups which elongate the onboarding process. A CSV upload works on day one.
+## 2. Ambiguity: What constitutes an "Anomaly"?
+**Decision:** I defined an anomaly strictly as quantities that deviate massively from expected norms (e.g., negative quantities, or massive outliers like 850,000 kWh for a single meter) or missing critical emission mappings. 
+**Why:** Without historical baseline data for a new client, statistical z-score anomaly detection is impossible. I fell back to hard-coded heuristic thresholds (e.g., `quantity <= 0` or `quantity > 100000`) to flag records for Human-in-the-Loop review.
+**Subset Handled vs Ignored:** I handled basic numeric bounds checking. I ignored complex contextual anomalies (e.g., "this facility usually uses less power in winter") due to the lack of historical ML models.
 
-## 4. Billing Periods vs. Calendar Months
-**Decision:** Record the `reporting_date` as the `billing_period_end`. 
-**Reasoning:** Apportioning a utility bill across calendar months (e.g., splitting a Mar 15 - Apr 15 bill) requires complex assumptions about daily usage curves (weekdays vs weekends). For carbon accounting prototypes, logging the emissions in the month the bill ends is a widely accepted simplification.
+## 3. Ambiguity: How to manage the workflow between Analysts and Auditors?
+**Decision:** Implemented Role-Based Access Control (RBAC) where the default public view is an Auditor (Read-Only) view, and explicit login is required for Analysts. Analysts can mutate state (`PENDING` -> `APPROVED`), which logs an event. 
+**Why:** Auditors primarily need to verify the math and the audit trail; they shouldn't accidentally edit data. Analysts are doing the operational data cleaning. 
 
-## 5. German SAP Headers Mapping
-**Decision:** Map standard SAP German abbreviations directly in the parser.
-**Reasoning:** SAP exports standard field names (MANDT, BUKRS, WERKS, MATNR, MENGE, MEINS). Translating these in the backend logic keeps the frontend clean for the analyst. `WERKS` (Plant) is mapped to validate locations, `MENGE` (Quantity) and `MEINS` (Base Unit of Measure) are extracted for normalization.
+## Questions for the PM
+If I had access to the Product Manager, I would ask:
+1. **Approval Workflows:** Do we need multi-stage approvals? (e.g., Junior Analyst cleans data -> Senior Analyst approves -> Data is locked for Auditors). Currently, anyone with the Analyst role can approve.
+2. **Emission Factor Versioning:** How do we handle recalculations if the EPA updates a 2023 emission factor retroactively? Should the locked records update, or remain immutable for that reporting period?
+3. **Data Pagination:** At enterprise scale, a single SAP export could contain millions of rows. Should we move the file processing off the main web thread and into an asynchronous queue like Celery?

@@ -1,15 +1,15 @@
-# Tradeoffs & Omissions
+# Engineering Tradeoffs
 
-To maintain focus and deliver a sharp, defensible prototype, the following features were deliberately omitted:
+During this rapid prototype development, three specific features were deliberately excluded or simplified to optimize for speed of delivery while proving the core normalization and auditability engines.
 
-## 1. Automated Real-Time API Integrations
--   **Omission:** No live webhooks or API pulls from external systems (SAP, Navan, Utility Providers).
--   **Reasoning:** We chose a file-upload architecture. Enterprise onboarding is heavily gated by InfoSec. A platform that can operate initially via secure file uploads can onboard clients in weeks rather than months. We traded "real-time magic" for realistic enterprise adoption speed.
+## 1. Asynchronous Task Queues (Celery/Redis)
+**What was omitted:** I did not implement an asynchronous task queue (like Celery) for the file ingestion process. Currently, files are processed synchronously in the Django view.
+**Why:** Adding Redis and Celery introduces significant infrastructure complexity for a prototype. While synchronous processing is an anti-pattern for large files (it blocks the HTTP response and risks timeouts), the sample datasets are small (<100 rows). In a real production environment with 50MB SAP dumps, this would be refactored into a background worker immediately.
 
-## 2. Automated Live Emission Factor Updates
--   **Omission:** The platform does not continuously poll EPA or DEFRA APIs for the latest emission factors.
--   **Reasoning:** In carbon accounting, audit stability is paramount. If a 2022 emissions report is audited in 2023, the calculation must use the exact emission factors active at that time. We chose a static, versioned `EmissionFactor` table. Analysts explicitly assign/update versions rather than the system silently changing the math underneath them.
+## 2. Advanced Machine Learning Anomaly Detection
+**What was omitted:** The anomaly detection relies on simple, hard-coded heuristic thresholds (e.g., flagging negative numbers or extremely large quantities) rather than a statistical ML model (e.g., Isolation Forests or ARIMA for time-series).
+**Why:** True anomaly detection requires historical baseline data to calculate standard deviations or seasonality (e.g., knowing that a facility uses more heating oil in January than July). Without a historical dataset, a complex model would overfit or throw constant false positives. Simple bounds-checking was faster to implement and sufficient to demonstrate the Human-in-the-Loop review UI.
 
-## 3. Multi-Currency Procurement Normalization (Spend-based methods)
--   **Omission:** We handle physical activity data (liters, kWh, km) but deferred spend-based emission calculations (e.g., $1000 spent on concrete = X kg CO2e).
--   **Reasoning:** Spend-based calculations require complex FX rate normalization across dates and regions, plus inflation adjustments. This adds massive complexity without fundamentally changing the core architecture of the carbon ledger. We prioritized activity-based data (which is more accurate for Scopes 1 & 2 anyway) for the prototype.
+## 3. Dedicated Database Migrations for Multi-Tenancy (Row-Level Security)
+**What was omitted:** Multi-tenancy is handled via standard Django ORM `ForeignKey` relationships to a `Client` model, rather than strict Postgres Row-Level Security (RLS) or separate database schemas per tenant.
+**Why:** Implementing schema-based multi-tenancy (using packages like `django-tenants`) severely complicates database migrations and local testing. For a prototype, logical isolation via ORM filtering proves the concept. Before scaling to highly regulated enterprise clients, migrating to true RLS at the database level would provide stronger data leak guarantees.
