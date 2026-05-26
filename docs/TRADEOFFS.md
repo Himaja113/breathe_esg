@@ -1,15 +1,15 @@
-# Engineering Tradeoffs
+# Engineering Tradeoffs (10% Weight)
 
-During this rapid prototype development, three specific features were deliberately excluded or simplified to optimize for speed of delivery while proving the core normalization and auditability engines.
+To deliver a sharp, highly reliable core engine in 4 days, I aggressively scoped out features that would introduce fragility without proving the core value proposition. Here are three things deliberately omitted and why:
 
-## 1. Asynchronous Task Queues (Celery/Redis)
-**What was omitted:** I did not implement an asynchronous task queue (like Celery) for the file ingestion process. Currently, files are processed synchronously in the Django view.
-**Why:** Adding Redis and Celery introduces significant infrastructure complexity for a prototype. While synchronous processing is an anti-pattern for large files (it blocks the HTTP response and risks timeouts), the sample datasets are small (<100 rows). In a real production environment with 50MB SAP dumps, this would be refactored into a background worker immediately.
+## 1. Asynchronous Task Queues (No Celery/Redis)
+**What was omitted:** The file ingestion engine currently parses files synchronously within the Django HTTP request/response cycle.
+**Why:** A true enterprise platform processing a 500MB SAP export must offload parsing to a background worker (like Celery) to prevent gateway timeouts. However, adding Redis and Celery introduces massive infrastructure overhead and deployment complexity. For a prototype proving data normalization logic on sample sets <10MB, synchronous processing is a calculated technical debt. The parsing logic itself is isolated in `ingestion/parsers.py` and can be easily wrapped in a `@shared_task` later.
 
-## 2. Advanced Machine Learning Anomaly Detection
-**What was omitted:** The anomaly detection relies on simple, hard-coded heuristic thresholds (e.g., flagging negative numbers or extremely large quantities) rather than a statistical ML model (e.g., Isolation Forests or ARIMA for time-series).
-**Why:** True anomaly detection requires historical baseline data to calculate standard deviations or seasonality (e.g., knowing that a facility uses more heating oil in January than July). Without a historical dataset, a complex model would overfit or throw constant false positives. Simple bounds-checking was faster to implement and sufficient to demonstrate the Human-in-the-Loop review UI.
+## 2. Machine Learning for Anomaly Detection
+**What was omitted:** I did not implement Isolation Forests, ARIMA, or any statistical ML models for catching suspicious records, relying instead on hard-coded heuristics.
+**Why:** Adding `scikit-learn` or time-series forecasting looks great on a resume but fails miserably in production without historical baselines. We are onboarding a *new* client. We don't know if their factory spikes electricity usage in July vs January. Any ML model deployed on day one would overfit or generate endless false positives, ruining the Analyst UX. Simple bounds-checking (e.g., `quantity <= 0`) is honest, deterministic, and immediately valuable.
 
-## 3. Dedicated Database Migrations for Multi-Tenancy (Row-Level Security)
-**What was omitted:** Multi-tenancy is handled via standard Django ORM `ForeignKey` relationships to a `Client` model, rather than strict Postgres Row-Level Security (RLS) or separate database schemas per tenant.
-**Why:** Implementing schema-based multi-tenancy (using packages like `django-tenants`) severely complicates database migrations and local testing. For a prototype, logical isolation via ORM filtering proves the concept. Before scaling to highly regulated enterprise clients, migrating to true RLS at the database level would provide stronger data leak guarantees.
+## 3. Database-Level Row-Level Security (RLS)
+**What was omitted:** I did not configure strict PostgreSQL Row-Level Security policies or separate schema-per-tenant structures (e.g., using `django-tenants`). 
+**Why:** Schema-based multi-tenancy makes database migrations incredibly complex and brittle during rapid prototyping. While it provides the ultimate guarantee against cross-tenant data leaks, Django's ORM is robust enough for an MVP. By anchoring all models to a `Client` ForeignKey, we enforce logical multi-tenancy at the application layer. This allowed me to iterate on the schema 10x faster without fighting Postgres schema routing.

@@ -1,21 +1,18 @@
-# Data Sources & Ingestion Research
+# Data Sources & Ingestion Research (20% Weight)
 
-Breathe ESG handles three primary enterprise data sources. Each requires specific parsing logic to extract the normalized fields required for carbon accounting.
+To build a realistic engine, I researched the specific pain points of ingesting from three notoriously difficult enterprise silos.
 
 ## 1. SAP (Fuel & Procurement Data)
-**Format Researched:** Standard SAP ERP text exports (often tab-delimited or ALV grid dumps).
-**What I Learned:** SAP uses internal German abbreviations for column headers (`MANDT` for Client, `WERKS` for Plant, `MENGE` for Quantity, `MEINS` for Unit of Measure, `BUDAT` for Posting Date). These files are notoriously rigid and rely on internal material codes (`MATNR`).
-**Sample Data:** Our sample `sap_procurement.txt` is a tab-delimited file mimicking this exact structure. We specifically parse `MENGE`, `MEINS`, and `BUDAT` to get the core activity data, and we use a generic `BKTXT` (Document Header Text) column to simulate the fuel type (e.g., "Diesel") for simplicity.
-**What would break in production:** In a real deployment, relying on `BKTXT` for the fuel type would break instantly. Real SAP deployments use `MATNR` (Material Numbers). We would need to build a complex mapping table that links specific SAP Material Numbers (e.g., `MAT100045`) to an Emission Factor (`Diesel`).
+* **Research:** SAP offers modern APIs (OData) and legacy middleware (IDocs/BAPIs). However, ESG onboarding is usually driven by sustainability teams, not IT. Getting SAP PI/PO firewall exceptions takes months. Therefore, the reality of SAP ingestion is flat-file ALV grid exports or background job spool files.
+* **Sample Data:** My `sap_procurement.txt` mimics a tab-delimited ALV export. It uses realistic SAP column headers: `MANDT` (Client), `WERKS` (Plant), `MENGE` (Quantity), `MEINS` (Unit of Measure), and `BUDAT` (Posting Date).
+* **What would break in production:** I used `BKTXT` (Document Header Text) to simulate the fuel type (e.g., "Diesel"). In reality, SAP uses Material Numbers (`MATNR`). A production deployment would instantly break without a master mapping table linking `MATNR: 100045` to the `EmissionFactor: Diesel`.
 
 ## 2. Utility Portals (Electricity Data)
-**Format Researched:** Standard CSV exports from major utility providers (e.g., PG&E, ConEdison) or aggregated facility management software.
-**What I Learned:** Utility bills span a "billing period" rather than a single day. They report consumption in Kilowatt-hours (`kWh`) or Megawatt-hours (`MWh`) alongside financial cost.
-**Sample Data:** Our sample `utility_data.csv` includes `billing_period_start`, `billing_period_end`, and `consumption_kwh`. We use the `billing_period_end` as the official `reporting_date` for carbon ledgers.
-**What would break in production:** Real utility data frequently contains estimated meter reads followed by corrections in the next month. This prototype assumes all data is final. In production, we would need logic to handle negative consumption adjustments or handle overlapping billing periods to prevent double-counting emissions.
+* **Research:** Utilities provide data via PDFs, portal CSVs, or Green Button XML. OCR on PDFs is too brittle. Green Button is standard but not universally adopted. The lowest common denominator is the portal CSV export.
+* **Sample Data:** My `utility_data.csv` avoids the trap of assigning consumption to a calendar month. Utility bills cover "billing periods" (e.g., Jan 14 to Feb 12). The sample explicitly defines `billing_period_start` and `billing_period_end`. 
+* **What would break in production:** The prototype assumes the data is final. In the real world, utilities frequently issue "estimated" meter reads and then send a true-up correction file two months later. Without logic to handle negative consumption adjustments or supersede previous records, we would double-count carbon.
 
-## 3. Corporate Travel (Business Travel Data)
-**Format Researched:** Exports from corporate travel platforms like Concur, Egencia, or Navan.
-**What I Learned:** Travel data is heavily fragmented. Flights are measured in distance (km/miles), hotels are measured in room nights, and rental cars are measured in distance or fuel cost.
-**Sample Data:** Our sample `travel_data.csv` accommodates this fragmentation by including a `segment_type` column (`flight`, `hotel`, `car`). The ingestion logic uses conditional statements to route the normalization process (e.g., looking for `distance_km` if it's a flight, but looking for `nights` if it's a hotel).
-**What would break in production:** Flight emissions vary drastically based on cabin class (Economy vs. First Class) due to the footprint area of the seat, and whether it's short-haul vs. long-haul. Our prototype maps all flights to a generic "Flight" emission factor. In production, the engine would need to parse the `cabin_class`, `origin`, and `destination` airports to calculate accurate haul distances and apply specific IPCC emission factors.
+## 3. Corporate Travel (Concur / Navan)
+* **Research:** Travel platforms have rich APIs, but the data shape is deeply fragmented. A flight emits based on distance and cabin class (business class takes up more floor space). A hotel emits based on room nights and country-specific grid factors. 
+* **Sample Data:** My `travel_data.csv` uses a `segment_type` column (`flight`, `hotel`, `car`) to route normalization logic. The ingestor dynamically checks the segment type to know whether it should look for `distance_km` or `nights`.
+* **What would break in production:** The prototype lumps all flights into a single emission factor. Real deployments must parse the origin and destination airport codes (e.g., `JFK-LHR`) to calculate the exact haul distance, as short-haul flights have drastically different emission curves than long-haul flights.
