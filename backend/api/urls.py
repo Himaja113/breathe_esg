@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import IngestionJobViewSet, NormalizedRecordViewSet, IngestFileView, AuditLogListView, DashboardSummaryView
+from .views import IngestionJobViewSet, NormalizedRecordViewSet, IngestFileView, AuditLogListView, DashboardSummaryView, LoginView
 
 router = DefaultRouter()
 router.register(r'jobs', IngestionJobViewSet)
@@ -11,4 +11,5 @@ urlpatterns = [
     path('ingest/<str:source_type>/', IngestFileView.as_view(), name='ingest'),
     path('audit/<int:record_id>/', AuditLogListView.as_view(), name='audit_log'),
     path('dashboard/summary/', DashboardSummaryView.as_view(), name='dashboard_summary'),
+    path('login/', LoginView.as_view(), name='login'),
 ]

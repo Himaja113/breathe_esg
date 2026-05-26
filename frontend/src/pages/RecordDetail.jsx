@@ -32,6 +32,8 @@ export default function RecordDetail() {
     fetchRecord();
   };
 
+  const isAnalyst = localStorage.getItem('role') === 'ANALYST';
+
   if (!record) return <div className="p-8">Loading...</div>;
 
   return (
@@ -43,7 +45,7 @@ export default function RecordDetail() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Record #{record.id}</h1>
         <div className="flex gap-3">
-          {['PENDING', 'FLAGGED'].includes(record.status) && (
+          {isAnalyst && ['PENDING', 'FLAGGED'].includes(record.status) && (
             <>
               <button 
                 onClick={() => setIsEditing(!isEditing)}

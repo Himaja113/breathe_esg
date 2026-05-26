@@ -4,6 +4,25 @@ from rest_framework.views import APIView
 from rest_framework.decorators import action
 from django.db.models import Count, Sum
 from django.forms.models import model_to_dict
+from rest_framework.authtoken.models import Token
+from django.contrib.auth import authenticate
+from rest_framework.permissions import IsAuthenticated, BasePermission, SAFE_METHODS
+
+class IsAnalystOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return request.user and request.user.is_authenticated and request.user.role == 'ANALYST'
+
+class LoginView(APIView):
+    def post(self, request, format=None):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        user = authenticate(username=username, password=password)
+        if user is not None:
+            token, created = Token.objects.get_or_create(user=user)
+            return Response({'token': token.key, 'role': user.role, 'username': user.username})
+        return Response({'error': 'Invalid Credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 from .serializers import *
 from ingestion.models import IngestionJob
 from normalization.models import NormalizedRecord
@@ -18,6 +37,8 @@ class IngestionJobViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = IngestionJobSerializer
 
 class IngestFileView(APIView):
+    permission_classes = [IsAnalystOrReadOnly]
+    
     def post(self, request, source_type, *args, **kwargs):
         if 'file' not in request.FILES:
             return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
@@ -50,6 +71,7 @@ class IngestFileView(APIView):
 class NormalizedRecordViewSet(viewsets.ModelViewSet):
     queryset = NormalizedRecord.objects.all().order_by('-created_at')
     serializer_class = NormalizedRecordSerializer
+    permission_classes = [IsAnalystOrReadOnly]
     
     def get_queryset(self):
         queryset = super().get_queryset()
