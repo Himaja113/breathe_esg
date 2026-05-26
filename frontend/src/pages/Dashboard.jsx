@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, CheckCircle2, Clock, AlertCircle, Lock } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, CartesianGrid } from 'recharts';
 import api from '../api';
 
 export default function Dashboard() {
@@ -70,6 +70,7 @@ export default function Dashboard() {
                 <Tooltip 
                   cursor={{fill: '#f3f4f6'}}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  formatter={(value) => value.toLocaleString() + " kg CO2e"}
                 />
                 <Bar dataKey="total" fill="url(#colorTotal)" radius={[6, 6, 0, 0]} maxBarSize={60} />
               </BarChart>
@@ -78,8 +79,66 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Recent Ingestion Jobs</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-8 flex items-center gap-2">
+            Emissions by Source
+            <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">% Share</span>
+          </h2>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data.emissions_by_source}
+                  innerRadius={80}
+                  outerRadius={110}
+                  paddingAngle={5}
+                  dataKey="total"
+                  nameKey="source_type"
+                >
+                  {data.emissions_by_source?.map((entry, index) => {
+                    const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'];
+                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                  })}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  formatter={(value) => Number(value).toLocaleString() + " kg CO2e"}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <h2 className="text-xl font-bold text-gray-900 mb-8 flex items-center gap-2">
+          Emissions Timeline
+          <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Reporting Date</span>
+        </h2>
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data.timeline_data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
+                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#6b7280', fontSize: 12}} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} tickFormatter={(value) => value.toLocaleString()} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                formatter={(value) => value.toLocaleString() + " kg CO2e"}
+              />
+              <Area type="monotone" dataKey="total" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorArea)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Recent Ingestion Jobs</h2>
             <button className="text-sm text-brand-600 font-medium hover:text-brand-700">View all</button>
           </div>
           <div className="space-y-4">

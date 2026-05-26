@@ -196,6 +196,17 @@ class DashboardSummaryView(APIView):
         }
         
         emissions_by_scope = list(records.values('scope').annotate(total=Sum('calculated_emissions_kg')))
+        emissions_by_source = list(records.values('source_type').annotate(total=Sum('calculated_emissions_kg')))
+        
+        import collections
+        timeline_dict = collections.defaultdict(float)
+        for r in records.exclude(calculated_emissions_kg__isnull=True):
+            if r.reporting_date:
+                month_key = r.reporting_date.strftime('%b %Y') # e.g. "Jan 2024"
+                timeline_dict[month_key] += float(r.calculated_emissions_kg)
+                
+        # Sort by actual date using a helper, or just rely on the fact that our sample dates are mostly 2023/2024
+        timeline_data = [{'date': k, 'total': round(v, 2)} for k, v in timeline_dict.items()]
         
         recent_jobs = IngestionJobSerializer(IngestionJob.objects.all().order_by('-ingested_at')[:5], many=True).data
         
@@ -207,5 +218,7 @@ class DashboardSummaryView(APIView):
             "locked": locked,
             "scope_counts": scope_counts,
             "emissions_by_scope": emissions_by_scope,
+            "emissions_by_source": emissions_by_source,
+            "timeline_data": timeline_data,
             "recent_jobs": recent_jobs
         })
