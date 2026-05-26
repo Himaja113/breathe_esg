@@ -5,7 +5,7 @@ Breathe ESG is a modern, full-stack enterprise carbon accounting prototype desig
 ## Architecture
 
 * **Frontend:** React, TailwindCSS, Vite (Hosted on Vercel)
-* **Backend:** Python, Django REST Framework, SQLite/PostgreSQL (Hosted on Railway)
+* **Backend:** Python, Django REST Framework, PostgreSQL (Hosted on Railway)
 * **API Proxy:** The frontend proxies all `/api` requests through Vercel to bypass ISP DNS blocking.
 
 ## Core Features
@@ -27,11 +27,13 @@ The core architectural decisions and research are documented in the `docs/` fold
 ## Local Setup
 
 ### Backend (Django)
+*Note: This project relies on PostgreSQL (not SQLite) to ensure JSONField and concurrent write stability. Ensure a valid `DATABASE_URL` is set in your environment.*
 ```bash
 cd backend
 python -m venv venv
 .\venv\Scripts\activate
 pip install -r requirements.txt
+# Set DATABASE_URL in your environment or .env file before migrating
 python manage.py migrate
 python seed.py
 python manage.py runserver
